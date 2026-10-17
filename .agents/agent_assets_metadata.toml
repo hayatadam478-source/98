@@ -15,3 +15,17 @@ storage_uri = "gcs://replit-rams-assets-kira/rams/assets/conversation:3abe076b-1
 storage_version_token = "1792200669371667"
 content_type = "application/octet-stream"
 source_uri = "file://FairFare-MASTER-CHECKPOINT-06.zip"
+
+[[outputs]]
+id = "K5lHyj3E6sYpfmpMefcll"
+uri = "file://generated-artifacts/FairFare-MASTER-CHECKPOINT-07.zip"
+type = "unspecified"
+title = "FairFare Master Checkpoint 07"
+description = "Restorable FairFare source archive with API, Browserbase worker, tests, package manifests, and updated recovery documentation. Excludes secrets, dependencies, caches, and build output."
+logical_id = "330734cf-2423-4631-b069-d82618b8e660"
+content_hash = "sha256:9315f8e901adb1234c982d51fc61699770282e624d6a73f713ac233fac7a19ee"
+size = 184132
+mtime_ms = 1792203431551
+storage_uri = "gcs://replit-rams-assets-kira/rams/assets/repl:7b233dd3-5776-43a2-b287-a19d57fe1459/330734cf-2423-4631-b069-d82618b8e660/be6696fa-1ada-4133-a49b-23dcc9f79645"
+storage_version_token = "1792203504338180"
+content_type = "application/octet-stream"

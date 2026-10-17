@@ -7,12 +7,16 @@ The Replit project is a pnpm workspace. Its API implementation is in `artifacts/
 From the workspace root:
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
+pnpm --filter @workspace/api-spec run codegen
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/api-server run test
+pnpm --filter @workspace/api-server run build
 ```
 
-The Replit `artifacts/api-server: API Server` workflow runs the API on its configured port. The protected routes require `WORKER_SERVICE_TOKEN` in Replit Secrets. Check `GET /api/healthz` for process health.
+The Replit `artifacts/api-server: API Server` workflow runs the API on its configured port. The protected routes require `WORKER_SERVICE_TOKEN` in Replit Secrets. Check `GET /api/healthz` for process health. After setting or changing the secret, restart the workflow.
+
+The API creates in-memory, manual-only jobs. A successful create returns `not-verified`; it does not launch Browserbase or confirm an Uber sign-in.
 
 ## Interactive worker
 

@@ -1,10 +1,11 @@
-# Recovery verification — Checkpoint 06
+# Recovery verification — Checkpoint 07
 
-- Source: user-provided Recovery 05 archive; integrity and file list checked before extraction.
-- The original worker source was copied byte-for-byte into the API artifact.
-- Contract generation completed from `lib/api-spec/openapi.yaml`; shared library typecheck passed.
-- API-server typecheck passed.
-- API-server tests passed: 9 passed, 0 failed. Tests use local HTTP requests and mocks for the runner/lock path.
-- Workflow smoke probe: `GET /api/healthz` returned HTTP 200. Authenticated job creation returned HTTP 503 `service_not_configured`; the secret key exists but the running service does not see a valid token. The secret value was not read or logged.
+- Source: user-provided Checkpoint 06 archive; ZIP integrity and contents checked before extraction.
+- All 136 archived source files were restored. The Browserbase worker checksum matched the archive copy.
+- Dependencies installed from the included lockfile; no dependencies or build output are included in this checkpoint.
+- OpenAPI code generation and shared-library typecheck passed.
+- API-server typecheck and build passed.
+- API-server tests passed: 9 passed, 0 failed. Tests cover HTTP routes and mocked runner/lock paths.
+- Live API checks passed using `WORKER_SERVICE_TOKEN` from Replit Secrets via `replit secrets exec`. The token was not read, printed, or logged.
 - Live Browserbase/Uber session, persistent-context validation, Hatchable integration, and deployment: **not run**.
 - API jobs are in memory and the context lock is per process; do not run multiple instances for the same context.

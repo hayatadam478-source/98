@@ -1,4 +1,4 @@
-# Current capabilities — Checkpoint 06
+# Current capabilities — Checkpoint 07
 
 ## Available
 
@@ -9,6 +9,7 @@
 - Rate limiting defaults to 30 requests per minute per remote IP.
 - A process-local mutex rejects a concurrent job with HTTP 409.
 - Default jobs end as `not-verified` with `manual_interaction_required`; the API does not launch a browser.
+- The configured service token was tested against the live API without exposing its value: health returned 200, missing/invalid credentials returned 401, job creation returned 202, and status retrieval returned 200.
 
 ## Not implemented or not verified
 
@@ -17,4 +18,4 @@
 - Fare scraping, ride booking, payments, or automated login/password/code entry.
 - Fresh live Browserbase/Uber connectivity or persistent-context behavior in this checkpoint.
 
-Checkpoint 05 includes historical manual verification results; they were not repeated here.
+Checkpoint 05 includes historical manual verification results; they were not repeated here. Checkpoint 07 tests confirm the API simulation only and are not Browserbase verification.

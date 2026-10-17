@@ -4,11 +4,11 @@ Store real values in Replit Secrets only. Never put them in source files, checkp
 
 ## API
 
-- `WORKER_SERVICE_TOKEN` — required for protected session-check routes; the API returns 503 until a value of at least 32 non-whitespace characters is configured. Use a cryptographically random token and pass it only from trusted server-side code.
+- `WORKER_SERVICE_TOKEN` — required for protected session-check routes; the API returns 503 until a value of at least 32 non-whitespace characters is configured. Generate a cryptographically random token and pass it only from trusted server-side code.
 
-If the API returns `503 service_not_configured`, replace this secret with a valid generated value using the secure Secrets flow.
+If the API returns `503 service_not_configured`, confirm this key exists in the current project's Replit Secrets, contains at least 32 non-whitespace characters, and restart the API workflow.
 
-If generating the value in a local/Replit Shell, this prints a fresh 32-byte random token to that terminal; copy it directly into Replit Secrets and never into chat or source control:
+To generate a fresh 32-byte random token in the Replit Shell, run this command and copy its output directly into Replit Secrets. Never paste the value into chat, source files, browser-side JavaScript, or checkpoint ZIPs:
 
 ```sh
 node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"

@@ -1,13 +1,19 @@
-# Test results — Checkpoint 06
+# Test results — Checkpoint 07
 
 ## Checks performed
 
-- API server TypeScript typecheck: passed.
-- `pnpm --filter @workspace/api-server run test`: passed; 9 tests passed, 0 failed.
-- `pnpm --filter @workspace/api-spec run codegen`: passed, including the shared library typecheck.
-- API tests ran local HTTP requests with injected runner mocks for the context lock and error paths.
-- The preserved worker's syntax check passed; its source SHA-256 matches the Recovery 05 copy.
-- Workflow smoke probe: `GET /api/healthz` returned HTTP 200. Authenticated job creation returned HTTP 503 `service_not_configured`; the saved secret is not currently usable by the workflow. Its value was not printed or inspected.
+- `pnpm install --frozen-lockfile`: passed.
+- `pnpm --filter @workspace/api-spec run codegen`: passed, including shared-library typecheck.
+- `pnpm --filter @workspace/api-server run typecheck`: passed.
+- `pnpm --filter @workspace/api-server run test`: passed; 9 tests passed, 0 failed. This command also runs `node --check worker/browser-worker.js`.
+- `pnpm --filter @workspace/api-server run build`: passed.
+- Live API checks used the configured secret through `replit secrets exec`; the token was not printed or logged:
+  - `GET /api/healthz`: HTTP 200.
+  - `POST /api/v1/session-check` without a token: HTTP 401.
+  - `POST /api/v1/session-check` with an invalid token: HTTP 401.
+  - Authenticated `POST /api/v1/session-check`: HTTP 202.
+  - Authenticated `GET /api/v1/session-check/:jobId`: HTTP 200.
+  - The created job reported `not-verified` and `manual_interaction_required`.
 
 ## Covered
 
