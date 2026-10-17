@@ -1,11 +1,14 @@
-# Recovery verification — Checkpoint 07
+# Recovery verification — Checkpoint 08
 
-- Source: user-provided Checkpoint 06 archive; ZIP integrity and contents checked before extraction.
-- All 136 archived source files were restored. The Browserbase worker checksum matched the archive copy.
-- Dependencies installed from the included lockfile; no dependencies or build output are included in this checkpoint.
-- OpenAPI code generation and shared-library typecheck passed.
-- API-server typecheck and build passed.
-- API-server tests passed: 9 passed, 0 failed. Tests cover HTTP routes and mocked runner/lock paths.
-- Live API checks passed using `WORKER_SERVICE_TOKEN` from Replit Secrets via `replit secrets exec`. The token was not read, printed, or logged.
-- Live Browserbase/Uber session, persistent-context validation, Hatchable integration, and deployment: **not run**.
-- API jobs are in memory and the context lock is per process; do not run multiple instances for the same context.
+- Source: the restored Checkpoint 07 workspace. The original interactive Browserbase worker remains unchanged.
+- Added the `fairfare_session_check_jobs` table to the existing development PostgreSQL database with Drizzle. No production schema change was made.
+- The table stores only a UUID job ID, status, timestamps, and fixed result code/message.
+- Cross-instance single-job exclusion uses a PostgreSQL session advisory lock. The lock is held while the job runner is active and releases when the job finishes or its database connection closes.
+- API startup acquires the context lock before marking stranded `running` records as `failed` with `job_interrupted`. If another instance owns the lock, startup recovery leaves its running job alone.
+- API build completed and the managed API workflow restarted successfully. Startup completed and listened on port 8080.
+- Full workspace typecheck passed. API test suite passed: 12 passed, 0 failed. The three database-backed tests cover persistence across recreated API servers, recovery of an interrupted job, and cross-instance lock contention.
+- Live checks used `WORKER_SERVICE_TOKEN` through `replit secrets exec`; its value was not printed, logged, or included in this archive.
+- Live health returned 200; unauthenticated create and status requests returned 401; authenticated create returned 202; status retrieval returned 200.
+- A completed job was retrieved after a second API workflow restart, confirming live persistence.
+- Live Browserbase/Uber session, Hatchable integration, and deployment: **not run**.
+- The default API runner is still a simulation that returns `not-verified`; no browser session was opened.

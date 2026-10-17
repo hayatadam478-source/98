@@ -8,7 +8,8 @@ From the workspace root:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @workspace/api-spec run codegen
+pnpm --filter @workspace/db run push # development database only, if schema is missing
+pnpm run typecheck
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/api-server run test
 pnpm --filter @workspace/api-server run build
@@ -16,7 +17,7 @@ pnpm --filter @workspace/api-server run build
 
 The Replit `artifacts/api-server: API Server` workflow runs the API on its configured port. The protected routes require `WORKER_SERVICE_TOKEN` in Replit Secrets. Check `GET /api/healthz` for process health. After setting or changing the secret, restart the workflow.
 
-The API creates in-memory, manual-only jobs. A successful create returns `not-verified`; it does not launch Browserbase or confirm an Uber sign-in.
+The API stores job status in the existing PostgreSQL database. Completed records expire after 15 minutes, with a 1,000-job cap. A shared PostgreSQL advisory lock allows only one job at a time across API instances. On startup, abandoned `running` jobs are marked `failed` with `job_interrupted`. The default runner remains manual-only: a successful job ends as `not-verified`; it does not launch Browserbase or confirm an Uber sign-in.
 
 ## Interactive worker
 
@@ -30,4 +31,4 @@ Use the Live View privately and enter any login information yourself. The worker
 
 ## Recovery and limitations
 
-Read `PROJECT-STATUS.md`, `CURRENT-CAPABILITIES.md`, `TEST-RESULTS.md`, and `SECRETS-SETUP.md` in this directory before making changes. Job data and the context mutex are process-local; jobs disappear on restart and multiple API instances are unsafe for one shared context. The Browserbase context and sign-in state are external and are not part of the source archive.
+Read `PROJECT-STATUS.md`, `CURRENT-CAPABILITIES.md`, `TEST-RESULTS.md`, and `SECRETS-SETUP.md` in this directory before making changes. Rate limiting remains per API process. The current API runner does not open a Browserbase session. Browserbase context and sign-in state are external and are not part of the source archive.

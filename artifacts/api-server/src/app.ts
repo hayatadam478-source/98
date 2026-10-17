@@ -76,5 +76,3 @@ export function createApp(options: ApiRouterOptions = {}): Express {
   return app;
 }
 
-const app = createApp();
-export default app;

@@ -36,7 +36,10 @@ FairFare keeps a manual Browserbase session-verification worker and a small auth
 ## Architecture decisions
 
 - The HTTP API never starts Browserbase; its default job result is `not-verified` because verification requires a person in Live View.
-- API jobs and the shared-context mutex are in memory and process-local. Run one API instance only until durable storage and a shared lock are added.
+- API job status is persisted in the existing PostgreSQL database. Terminal records expire after 15 minutes and the store is bounded to 1,000 jobs.
+- PostgreSQL advisory locking coordinates session-check jobs across API instances. Startup recovery marks abandoned `running` rows as failed.
+- Job records must remain limited to job/status/timestamp metadata and fixed result codes/messages; never add credentials, cookies, Live View URLs, or browser session data.
+- Rate limiting remains process-local, so request limits can multiply across API instances.
 - `WORKER_SERVICE_TOKEN` must remain server-side. Never place it in Hatchable browser JavaScript.
 - The API does not modify or deploy the Hatchable site.
 
@@ -54,8 +57,8 @@ An operator-controlled Browserbase worker with a protected job API. It does not 
 ## Gotchas
 
 - Keep generated API files synchronized with `lib/api-spec/openapi.yaml` by running codegen after contract changes.
-- The context lock is not distributed; scaling to multiple processes is unsafe for one Browserbase context.
 - A `202` job is a record only; the current API does not start a real verification session.
+- The development database schema is managed with `pnpm --filter @workspace/db run push`; do not use that command against production.
 
 ## Pointers
 

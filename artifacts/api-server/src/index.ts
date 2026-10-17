@@ -1,5 +1,10 @@
-import app from "./app";
+import { createApp } from "./app";
 import { logger } from "./lib/logger";
+import {
+  PostgresSessionCheckContextLockProvider,
+  PostgresSessionCheckStore,
+} from "./lib/postgres-session-check-storage";
+import { createSessionCheckService } from "./lib/session-check-service";
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +20,29 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+const sessionCheckStore = new PostgresSessionCheckStore();
+const contextLockProvider = new PostgresSessionCheckContextLockProvider();
+const app = createApp({
+  sessionCheck: {
+    store: sessionCheckStore,
+    contextLockProvider,
+  },
+});
 
-  logger.info({ port }, "Server listening");
+async function startServer(): Promise<void> {
+  await createSessionCheckService({
+    store: sessionCheckStore,
+    contextLockProvider,
+  }).recoverInterruptedJobs();
+
+  app.listen(port, () => {
+    logger.info({ port }, "Server listening");
+  });
+}
+
+void startServer().catch(() => {
+  logger.error(
+    "Unable to initialize persistent session-check storage.",
+  );
+  process.exit(1);
 });

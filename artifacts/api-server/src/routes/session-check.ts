@@ -8,6 +8,8 @@ import {
 } from "@workspace/api-zod";
 import {
   createSessionCheckService,
+  type SessionCheckContextLockProvider,
+  type SessionCheckStore,
   type SessionCheckRunner,
 } from "../lib/session-check-service";
 
@@ -19,6 +21,8 @@ interface RateLimitOptions {
 export interface SessionCheckRouterOptions {
   getServiceToken?: () => string | undefined;
   runSessionCheck?: SessionCheckRunner;
+  store?: SessionCheckStore;
+  contextLockProvider?: SessionCheckContextLockProvider;
   rateLimit?: RateLimitOptions;
 }
 
@@ -114,10 +118,16 @@ function createAuthenticationMiddleware(
 export function createSessionCheckRouter({
   getServiceToken = () => process.env.WORKER_SERVICE_TOKEN?.trim(),
   runSessionCheck,
+  store,
+  contextLockProvider,
   rateLimit,
 }: SessionCheckRouterOptions = {}): IRouter {
   const router: IRouter = Router();
-  const jobs = createSessionCheckService({ runSessionCheck });
+  const jobs = createSessionCheckService({
+    runSessionCheck,
+    store,
+    contextLockProvider,
+  });
 
   router.use("/v1", (_request, response, next) => {
     response.setHeader("Cache-Control", "no-store");
@@ -129,7 +139,7 @@ export function createSessionCheckRouter({
   router.use("/v1", createRateLimitMiddleware(rateLimit));
   router.use("/v1", createAuthenticationMiddleware(getServiceToken));
 
-  router.post("/v1/session-check", (request, response): void => {
+  router.post("/v1/session-check", async (request, response): Promise<void> => {
     const hasBody =
       Number(request.get("content-length") ?? 0) > 0 ||
       Boolean(request.get("transfer-encoding"));
@@ -149,7 +159,23 @@ export function createSessionCheckRouter({
       return;
     }
 
-    const result = jobs.create();
+    let result;
+    try {
+      result = await jobs.create();
+    } catch {
+      request.log.error(
+        { code: "session_check_storage_error" },
+        "Unable to create a session-check job.",
+      );
+      sendApiError(
+        response,
+        503,
+        "job_store_unavailable",
+        "The session-check job store is temporarily unavailable.",
+      );
+      return;
+    }
+
     if ("error" in result) {
       if (result.error === "context_busy") {
         sendApiError(
@@ -160,21 +186,37 @@ export function createSessionCheckRouter({
         );
         return;
       }
-      sendApiError(response, 503, "job_store_full", "The in-memory job store is full.");
+      sendApiError(response, 503, "job_store_full", "The session-check job store is full.");
       return;
     }
 
     response.status(202).json(CreateSessionCheckResponse.parse(result.job));
   });
 
-  router.get("/v1/session-check/:jobId", (request, response): void => {
+  router.get("/v1/session-check/:jobId", async (request, response): Promise<void> => {
     const params = GetSessionCheckParams.safeParse(request.params);
     if (!params.success) {
       sendApiError(response, 400, "invalid_job_id", "Job ID is invalid.");
       return;
     }
 
-    const job = jobs.get(params.data.jobId);
+    let job;
+    try {
+      job = await jobs.get(params.data.jobId);
+    } catch {
+      request.log.error(
+        { code: "session_check_storage_error" },
+        "Unable to retrieve a session-check job.",
+      );
+      sendApiError(
+        response,
+        503,
+        "job_store_unavailable",
+        "The session-check job store is temporarily unavailable.",
+      );
+      return;
+    }
+
     if (!job) {
       sendApiError(response, 404, "job_not_found", "Session-check job was not found.");
       return;

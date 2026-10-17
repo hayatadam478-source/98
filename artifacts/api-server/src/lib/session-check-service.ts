@@ -1,9 +1,34 @@
 import { randomUUID } from "node:crypto";
 import { CreateSessionCheckResponse } from "@workspace/api-zod";
+import { logger } from "./logger";
 
 export type SessionCheckJob = ReturnType<typeof CreateSessionCheckResponse.parse>;
 export type SessionCheckStatus = SessionCheckJob["status"];
 export type TerminalSessionCheckStatus = Exclude<SessionCheckStatus, "running">;
+
+export interface SessionCheckStore {
+  createRunningJob(
+    job: SessionCheckJob,
+    options: { maxJobs: number; expiresBefore: Date },
+  ): Promise<boolean>;
+  get(jobId: string): Promise<SessionCheckJob | undefined>;
+  setJobResult(
+    jobId: string,
+    status: TerminalSessionCheckStatus,
+    result: SessionCheckJob["result"],
+    updatedAt: Date,
+  ): Promise<void>;
+  deleteExpired(cutoff: Date): Promise<void>;
+  interruptRunningJobs(updatedAt: Date): Promise<number>;
+}
+
+export interface SessionCheckContextLease {
+  release(): Promise<void>;
+}
+
+export interface SessionCheckContextLockProvider {
+  tryAcquire(): Promise<SessionCheckContextLease | null>;
+}
 
 export type SessionCheckRunner = (input: {
   jobId: string;
@@ -11,6 +36,8 @@ export type SessionCheckRunner = (input: {
 
 export interface SessionCheckServiceOptions {
   runSessionCheck?: SessionCheckRunner;
+  store?: SessionCheckStore;
+  contextLockProvider?: SessionCheckContextLockProvider;
   now?: () => number;
   createId?: () => string;
   maxJobs?: number;
@@ -20,16 +47,6 @@ export interface SessionCheckServiceOptions {
 export type CreateSessionCheckResult =
   | { job: SessionCheckJob }
   | { error: "context_busy" | "job_store_full" };
-
-const terminalStatuses: readonly TerminalSessionCheckStatus[] = [
-  "verified",
-  "not-verified",
-  "failed",
-];
-
-function isTerminalStatus(value: unknown): value is TerminalSessionCheckStatus {
-  return terminalStatuses.includes(value as TerminalSessionCheckStatus);
-}
 
 function resultFor(status: TerminalSessionCheckStatus): SessionCheckJob["result"] {
   if (status === "not-verified") {
@@ -47,12 +64,121 @@ function resultFor(status: TerminalSessionCheckStatus): SessionCheckJob["result"
   }
   return {
     code: "verification_unavailable",
-    message: "The verification job could not be completed. Internal error details are not available.",
+    message:
+      "The verification job could not be completed. Internal error details are not available.",
+  };
+}
+
+function interruptedResult(): SessionCheckJob["result"] {
+  return {
+    code: "job_interrupted",
+    message:
+      "The session-check process stopped before the job completed. Submit a new request if needed.",
+  };
+}
+
+function cloneJob(job: SessionCheckJob): SessionCheckJob {
+  return CreateSessionCheckResponse.parse(job);
+}
+
+export function createInMemorySessionCheckStore(): SessionCheckStore {
+  const jobs = new Map<string, SessionCheckJob>();
+
+  return {
+    async createRunningJob(job, { maxJobs, expiresBefore }) {
+      for (const [jobId, existing] of jobs) {
+        if (
+          existing.status !== "running" &&
+          existing.updatedAt.getTime() < expiresBefore.getTime()
+        ) {
+          jobs.delete(jobId);
+        }
+      }
+
+      if (jobs.size >= maxJobs) {
+        const completed = [...jobs.values()]
+          .filter(existing => existing.status !== "running")
+          .sort(
+            (left, right) =>
+              left.updatedAt.getTime() - right.updatedAt.getTime(),
+          );
+        while (jobs.size >= maxJobs && completed.length > 0) {
+          jobs.delete(completed.shift()!.jobId);
+        }
+      }
+      if (jobs.size >= maxJobs) return false;
+      jobs.set(job.jobId, cloneJob(job));
+      return true;
+    },
+
+    async get(jobId) {
+      const job = jobs.get(jobId);
+      return job ? cloneJob(job) : undefined;
+    },
+
+    async setJobResult(jobId, status, result, updatedAt) {
+      const job = jobs.get(jobId);
+      if (!job) throw new Error("session_check_job_missing");
+      jobs.set(
+        jobId,
+        cloneJob({ ...job, status, result, updatedAt }),
+      );
+    },
+
+    async deleteExpired(cutoff) {
+      for (const [jobId, job] of jobs) {
+        if (
+          job.status !== "running" &&
+          job.updatedAt.getTime() < cutoff.getTime()
+        ) {
+          jobs.delete(jobId);
+        }
+      }
+    },
+
+    async interruptRunningJobs(updatedAt) {
+      let interrupted = 0;
+      for (const [jobId, job] of jobs) {
+        if (job.status === "running") {
+          jobs.set(
+            jobId,
+            cloneJob({
+              ...job,
+              status: "failed",
+              result: interruptedResult(),
+              updatedAt,
+            }),
+          );
+          interrupted += 1;
+        }
+      }
+      return interrupted;
+    },
+  };
+}
+
+export function createInMemorySessionCheckContextLockProvider(): SessionCheckContextLockProvider {
+  let locked = false;
+  return {
+    async tryAcquire() {
+      if (locked) return null;
+      locked = true;
+      let released = false;
+      return {
+        async release() {
+          if (released) return;
+          released = true;
+          locked = false;
+        },
+      };
+    },
   };
 }
 
 export function createSessionCheckService({
   runSessionCheck = async () => "not-verified",
+  store = createInMemorySessionCheckStore(),
+  contextLockProvider = createInMemorySessionCheckContextLockProvider(),
   now = () => Date.now(),
   createId = randomUUID,
   maxJobs = 1_000,
@@ -65,75 +191,93 @@ export function createSessionCheckService({
     throw new TypeError("jobTtlMs must be a positive number.");
   }
 
-  const jobs = new Map<string, SessionCheckJob>();
-  let activeJobId: string | null = null;
-
-  function pruneJobs(currentTime: number): void {
-    for (const [jobId, job] of jobs) {
-      if (
-        job.status !== "running" &&
-        currentTime - job.updatedAt.getTime() >= jobTtlMs
-      ) {
-        jobs.delete(jobId);
-      }
-    }
-
-    if (jobs.size < maxJobs) return;
-    const completed = [...jobs.values()]
-      .filter(job => job.status !== "running")
-      .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
-    while (jobs.size >= maxJobs && completed.length > 0) {
-      jobs.delete(completed.shift()!.jobId);
-    }
-  }
-
-  async function finishJob(job: SessionCheckJob): Promise<void> {
+  async function finishJob(
+    jobId: string,
+    lease: SessionCheckContextLease,
+  ): Promise<void> {
+    let status: TerminalSessionCheckStatus;
+    let result: SessionCheckJob["result"];
     try {
-      const outcome: unknown = await runSessionCheck({ jobId: job.jobId });
-      if (!isTerminalStatus(outcome)) {
-        throw new Error("Invalid verification result.");
+      status = await runSessionCheck({ jobId });
+      if (!["verified", "not-verified", "failed"].includes(status)) {
+        throw new Error("invalid_session_check_result");
       }
-      job.status = outcome;
-      job.result = resultFor(outcome);
+      result = resultFor(status);
     } catch {
-      job.status = "failed";
-      job.result = resultFor("failed");
+      status = "failed";
+      result = resultFor("failed");
+    }
+
+    try {
+      await store.setJobResult(jobId, status, result, new Date(now()));
+    } catch {
+      logger.error(
+        { jobId },
+        "Unable to persist the session-check job result.",
+      );
     } finally {
-      job.updatedAt = new Date(now());
-      if (activeJobId === job.jobId) activeJobId = null;
+      try {
+        await lease.release();
+      } catch {
+        logger.error({ jobId }, "Unable to release the session-check context lock.");
+      }
     }
   }
 
   return {
-    create(): CreateSessionCheckResult {
+    async create(): Promise<CreateSessionCheckResult> {
+      const lease = await contextLockProvider.tryAcquire();
+      if (!lease) return { error: "context_busy" };
+
+      try {
       const currentTime = now();
-      pruneJobs(currentTime);
-      if (activeJobId !== null) return { error: "context_busy" };
-      if (jobs.size >= maxJobs) return { error: "job_store_full" };
+        await store.interruptRunningJobs(new Date(currentTime));
 
-      const timestamp = new Date(currentTime);
-      const job = CreateSessionCheckResponse.parse({
-        jobId: createId(),
-        status: "running",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        result: {
-          code: "verification_in_progress",
-          message: "The verification job is running.",
-        },
-      });
-      jobs.set(job.jobId, job);
-      activeJobId = job.jobId;
+        const timestamp = new Date(currentTime);
+        const job = CreateSessionCheckResponse.parse({
+          jobId: createId(),
+          status: "running",
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          result: {
+            code: "verification_in_progress",
+            message: "The verification job is running.",
+          },
+        });
 
-      // Acquire the lock before scheduling any asynchronous work.
-      void finishJob(job);
-      return { job: CreateSessionCheckResponse.parse(job) };
+        const saved = await store.createRunningJob(job, {
+          maxJobs,
+          expiresBefore: new Date(currentTime - jobTtlMs),
+        });
+        if (!saved) {
+          await lease.release();
+          return { error: "job_store_full" };
+        }
+
+        // Keep the advisory lock held until the persisted result is terminal.
+        setImmediate(() => {
+          void finishJob(job.jobId, lease);
+        });
+        return { job: cloneJob(job) };
+      } catch (error) {
+        await lease.release();
+        throw error;
+      }
     },
 
-    get(jobId: string): SessionCheckJob | undefined {
-      pruneJobs(now());
-      const job = jobs.get(jobId);
-      return job ? CreateSessionCheckResponse.parse(job) : undefined;
+    async get(jobId: string): Promise<SessionCheckJob | undefined> {
+      await store.deleteExpired(new Date(now() - jobTtlMs));
+      return store.get(jobId);
+    },
+
+    async recoverInterruptedJobs(): Promise<number> {
+      const lease = await contextLockProvider.tryAcquire();
+      if (!lease) return 0;
+      try {
+        return await store.interruptRunningJobs(new Date(now()));
+      } finally {
+        await lease.release();
+      }
     },
   };
 }
