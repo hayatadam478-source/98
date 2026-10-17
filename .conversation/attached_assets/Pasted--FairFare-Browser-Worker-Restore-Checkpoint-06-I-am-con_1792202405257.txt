@@ -1,0 +1,92 @@
+# FairFare Browser Worker — Restore Checkpoint 06
+
+I am continuing my existing FairFare Browser Worker project.
+
+I have attached `FairFare-MASTER-CHECKPOINT-06.zip`, which contains my existing Browserbase worker, API server, automated tests and recovery documentation.
+
+**DO NOT START FROM SCRATCH.**
+
+## 1. Restore the project
+
+- Extract the attached ZIP automatically.
+- Read all existing README, START-HERE, PROJECT-STATUS and recovery documentation.
+- Restore the complete Node.js project.
+- Install the required dependencies.
+- Preserve all working source code.
+- Do not build a new frontend.
+- Keep storage usage minimal.
+
+## 2. Restore configuration
+
+The previous checkpoint identified one configuration problem:
+
+`503 service_not_configured`
+
+The API server could not access a valid `WORKER_SERVICE_TOKEN`.
+
+Please help me fix this.
+
+- Generate a new secure random `WORKER_SERVICE_TOKEN`.
+- Configure it using Replit Secrets, not source code or chat messages.
+- Ask me to complete any necessary manual Secrets setup.
+- Explain which Browserbase environment variables also need configuring.
+- Do not expose or log secret values.
+
+## 3. Test the API
+
+After configuring the environment, run:
+
+- JavaScript syntax tests.
+- API automated tests.
+- API server build.
+- `GET /api/healthz`.
+- Authentication tests.
+- `POST /api/v1/session-check`.
+- `GET /api/v1/session-check/:jobId`.
+- Invalid-token and missing-token tests.
+
+Report which tests pass and fail.
+
+The existing API may only simulate session-check jobs. Do not claim it performs live Browserbase verification unless that functionality is actually implemented and tested.
+
+## 4. Preserve Browserbase
+
+Keep the original interactive Browserbase worker intact.
+
+Previous checkpoints recorded successful Browserbase connection, Uber navigation and manually confirmed login persistence.
+
+These are historical results, not proof of a fresh successful test.
+
+Do not automate passwords, verification codes, fare extraction, payments or bookings.
+
+## 5. Create Checkpoint 07
+
+Once the configuration and API tests are completed, generate:
+
+`FairFare-MASTER-CHECKPOINT-07.zip`
+
+Include:
+- All source code.
+- API server.
+- Browserbase worker.
+- Dependencies manifests.
+- Automated tests.
+- Configuration templates.
+- Recovery guides.
+- Current project status.
+- Test results.
+- A continuation prompt for another session.
+
+Exclude secrets, cookies, browser storage, caches and node_modules.
+
+Make sure the ZIP is complete and can be restored independently.
+
+## 6. Next development step
+
+After Checkpoint 07, explain what remains before the API can securely communicate with my Hatchable website:
+
+https://fairfare.hatchable.site
+
+Do not modify Hatchable or start a paid deployment yet.
+
+**Start by restoring the ZIP and fixing the missing WORKER_SERVICE_TOKEN configuration. Do not rebuild completed functionality.**

@@ -1,8 +1,21 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import {
+  createSessionCheckRouter,
+  type SessionCheckRouterOptions,
+} from "./session-check";
 
-const router: IRouter = Router();
+export interface ApiRouterOptions {
+  sessionCheck?: SessionCheckRouterOptions;
+}
 
-router.use(healthRouter);
+export function createApiRouter({ sessionCheck }: ApiRouterOptions = {}): IRouter {
+  const router: IRouter = Router();
+  router.use(healthRouter);
+  router.use(createSessionCheckRouter(sessionCheck));
+  return router;
+}
+
+const router = createApiRouter();
 
 export default router;

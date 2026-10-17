@@ -1,15 +1,19 @@
-# [Project name]
+# FairFare Browser Worker
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+FairFare keeps a manual Browserbase session-verification worker and a small authenticated API for reporting verification jobs.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
+- `pnpm --filter @workspace/api-server run typecheck` — check API server and route types
+- `pnpm --filter @workspace/api-server run test` — run local API tests and check the preserved worker's syntax
+- `pnpm --filter @workspace/api-server run verify-session` — launch the original interactive worker; requires Browserbase secrets and a person using Live View
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required secret for protected session-check routes: `WORKER_SERVICE_TOKEN`
+- Optional Browserbase secrets for the interactive CLI: `BROWSERBASE_API_KEY`, `BROWSERBASE_PROJECT_ID`, `BROWSERBASE_CONTEXT_ID`
 
 ## Stack
 
@@ -22,23 +26,36 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- API contract: `lib/api-spec/openapi.yaml` (source of truth; regenerate with the codegen command above)
+- API routes: `artifacts/api-server/src/routes/`
+- Session job and context-lock logic: `artifacts/api-server/src/lib/session-check-service.ts`
+- Preserved interactive worker: `artifacts/api-server/worker/browser-worker.js`
+- Recovery documentation and secret setup: `artifacts/api-server/docs/fairfare/`
+- Automated route tests: `artifacts/api-server/test/session-check.test.ts`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The HTTP API never starts Browserbase; its default job result is `not-verified` because verification requires a person in Live View.
+- API jobs and the shared-context mutex are in memory and process-local. Run one API instance only until durable storage and a shared lock are added.
+- `WORKER_SERVICE_TOKEN` must remain server-side. Never place it in Hatchable browser JavaScript.
+- The API does not modify or deploy the Hatchable site.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+An operator-controlled Browserbase worker with a protected job API. It does not retrieve fares, book rides, handle payments, or automate Uber login.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Preserve the existing worker; do not rebuild it unnecessarily.
+- Do not automate passwords, verification codes, or logins.
+- Do not add fare scraping, ride booking, or payment automation.
+- Do not modify or deploy Hatchable without explicit authorization.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Keep generated API files synchronized with `lib/api-spec/openapi.yaml` by running codegen after contract changes.
+- The context lock is not distributed; scaling to multiple processes is unsafe for one Browserbase context.
+- A `202` job is a record only; the current API does not start a real verification session.
 
 ## Pointers
 

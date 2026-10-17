@@ -1,0 +1,17 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "9KPrjVMPRkV-VtfRY3ujM"
+uri = "file://.local/conversation-workspace/files/FairFare-MASTER-CHECKPOINT-06.zip"
+type = "unspecified"
+title = "FairFare Master Checkpoint 06"
+description = "Complete tested source backup: preserved interactive worker, authenticated API, automated tests, and recovery documentation. Re-extracted and retested; excludes node_modules and real secrets."
+logical_id = "fb3d941f-6296-407b-b6e4-38013f8209a4"
+content_hash = "sha256:c9b363d67d4feb3823a7b85c5aace5c745cad1c834f3fa8fcd7febd32cc19eae"
+size = 24162
+mtime_ms = 1792200648351
+storage_uri = "gcs://replit-rams-assets-kira/rams/assets/conversation:3abe076b-1af6-4053-a858-39575ef79a1d/fb3d941f-6296-407b-b6e4-38013f8209a4/64ce9ccf-214f-4011-b123-f015dc33b74c"
+storage_version_token = "1792200669371667"
+content_type = "application/octet-stream"
+source_uri = "file://FairFare-MASTER-CHECKPOINT-06.zip"
